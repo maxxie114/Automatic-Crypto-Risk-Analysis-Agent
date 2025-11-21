@@ -54,6 +54,7 @@ docker run -d \
   --restart unless-stopped \
   -e PORT=${PORT} \
   -e HELIUS_API_KEY="${HELIUS_API_KEY}" \
+  -e MORALIS_API_KEY="${MORALIS_API_KEY}" \
   -e EXTERNAL_API_KEY="${EXTERNAL_API_KEY}" \
   -e TRADESTATION_API_KEY="${TRADESTATION_API_KEY}" \
   ${IMAGE_NAME}
