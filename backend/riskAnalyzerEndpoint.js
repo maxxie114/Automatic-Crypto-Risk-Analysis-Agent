@@ -312,28 +312,50 @@ function analyzeRisk(accountData, apiResults) {
 
 async function getClaudeReasoning(accountData, riskAnalysis) {
   try {
-    const prompt = `You are a cryptocurrency risk analyst. Analyze the following token holder data and provide a detailed risk assessment.
+    const topHolders = accountData.topHolders || [];
+    const totalSupply = accountData.totalSupply || 'Unknown';
+    const tokenInfo = `${accountData.tokenName || 'Unknown'} (${accountData.tokenSymbol || 'Unknown'})`;
+    
+    // Calculate key metrics
+    const top3Concentration = topHolders.slice(0, 3).reduce((sum, h) => sum + (h.percentage || 0), 0);
+    const top10Concentration = topHolders.slice(0, 10).reduce((sum, h) => sum + (h.percentage || 0), 0);
+    const exchangeCount = topHolders.filter(h => 
+      h.type && (h.type.toLowerCase().includes('exchange') || h.type.toLowerCase().includes('pool'))
+    ).length;
 
-Token Data:
-${JSON.stringify(accountData, null, 2)}
+    const prompt = `You are an expert cryptocurrency risk analyst specializing in Solana tokens. Analyze this token's holder distribution and provide a professional risk assessment.
 
-Preliminary Risk Analysis:
+TOKEN: ${tokenInfo}
+TOTAL SUPPLY: ${totalSupply}
+
+HOLDER CONCENTRATION:
+- Top 3 holders control: ${top3Concentration.toFixed(2)}%
+- Top 10 holders control: ${top10Concentration.toFixed(2)}%
+- Exchange/Pool addresses: ${exchangeCount} out of top 10
+
+TOP HOLDERS BREAKDOWN:
+${topHolders.slice(0, 10).map((h, i) => 
+  `${i + 1}. ${h.percentage?.toFixed(2)}% - ${h.type || 'Unknown'} (${h.owner || h.walletOwner || 'Unknown'})`
+).join('\n')}
+
+PRELIMINARY RISK ASSESSMENT:
 - Risk Level: ${riskAnalysis.riskLevel}
 - Risk Score: ${riskAnalysis.score}/100
-- Key Factors: ${riskAnalysis.factors.join(', ')}
+- Key Factors: ${riskAnalysis.factors.join('; ')}
 
-Please provide:
-1. A comprehensive analysis of the holder distribution
-2. Identification of any red flags or concerning patterns
-3. Assessment of centralization risks
-4. Evaluation of liquidity and market manipulation risks
-5. Overall investment risk summary
+Provide a detailed professional analysis covering:
 
-Keep your response concise but thorough (300-500 words).`;
+1. **Holder Distribution Analysis**: Evaluate the concentration levels and what they indicate about token centralization
+2. **Red Flags & Warning Signs**: Identify any suspicious patterns, whale dominance, or manipulation risks
+3. **Liquidity Assessment**: Analyze the presence of exchange/pool addresses and their implications
+4. **Market Manipulation Risk**: Assess the potential for price manipulation based on holder concentration
+5. **Investment Recommendation**: Clear guidance on risk level and precautions investors should take
+
+Format your response in clear sections with actionable insights. Be direct and specific. Limit to 400-600 words.`;
 
     const message = await getAnthropicClient().messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
+      model: 'claude-opus-4-20250514',
+      max_tokens: 2048,
       messages: [{
         role: 'user',
         content: prompt
@@ -348,16 +370,22 @@ Keep your response concise but thorough (300-500 words).`;
 }
 
 function formatTopHolders(holders, topN) {
-  const formatted = holders.slice(0, topN).map((holder, index) => ({
-    rank: index + 1,
-    walletOwner: holder.owner || holder.walletOwner || 'Unknown',
-    tokenAccount: holder.address || holder.tokenAccount || 'Unknown',
-    balance: holder.balance || 0,
-    percentage: holder.percentage || 0,
-    accountType: holder.type || holder.accountType || 'Unknown'
-  }));
+  const formatted = [];
+  
+  // Process actual holders
+  for (let i = 0; i < Math.min(holders.length, topN); i++) {
+    const holder = holders[i];
+    formatted.push({
+      rank: i + 1,
+      walletOwner: holder.owner || holder.walletOwner || holder.address || 'Unknown',
+      tokenAccount: holder.address || holder.tokenAccount || holder.account || 'Unknown',
+      balance: parseFloat(holder.balance) || 0,
+      percentage: parseFloat(holder.percentage) || 0,
+      accountType: holder.type || holder.accountType || 'Unknown'
+    });
+  }
 
-  // Ensure exactly 10 holders (pad with empty if needed)
+  // Pad to exactly 10 holders as required by Sanity schema
   while (formatted.length < 10) {
     formatted.push({
       rank: formatted.length + 1,
@@ -369,6 +397,7 @@ function formatTopHolders(holders, topN) {
     });
   }
 
+  // Ensure exactly 10 (trim if somehow more)
   return formatted.slice(0, 10);
 }
 
