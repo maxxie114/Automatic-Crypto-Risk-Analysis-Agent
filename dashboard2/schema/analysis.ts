@@ -1,123 +1,133 @@
 import { defineField, defineType } from 'sanity'
 
 export default defineType({
-    name: 'analysis',
-    title: 'Token Analysis',
+    name: 'riskReport',
+    title: 'Risk Report',
     type: 'document',
+
     fields: [
         defineField({
-            name: 'coin',
-            title: 'Coin',
-            type: 'reference',
-            to: [{ type: 'coin' }],
-            validation: (Rule) => Rule.required(),
-        }),
-        defineField({
-            name: 'analysisType',
-            title: 'Analysis Type',
+            name: 'tokenAddress',
+            title: 'Token Address',
             type: 'string',
-            options: {
-                list: [
-                    { title: 'Risk Assessment', value: 'risk' },
-                    { title: 'Liquidity Check', value: 'liquidity' },
-                    { title: 'Holder Analysis', value: 'holder' },
-                    { title: 'Contract Audit', value: 'contract' },
-                ],
-            },
-            validation: (Rule) => Rule.required(),
+            validation: Rule => Rule.required()
         }),
+
         defineField({
-            name: 'status',
-            title: 'Status',
+            name: 'tokenName',
+            title: 'Token Name',
+            type: 'string'
+        }),
+
+        defineField({
+            name: 'tokenSymbol',
+            title: 'Token Symbol',
+            type: 'string'
+        }),
+
+        defineField({
+            name: 'chain',
+            title: 'Blockchain',
             type: 'string',
-            options: {
-                list: [
-                    { title: 'Pending', value: 'pending' },
-                    { title: 'In Progress', value: 'in_progress' },
-                    { title: 'Completed', value: 'completed' },
-                    { title: 'Failed', value: 'failed' },
-                ],
-            },
-            validation: (Rule) => Rule.required(),
+            initialValue: 'solana'
         }),
+
+        // -------------------------------
+        // ALWAYS TOP 10 HOLDERS
+        // -------------------------------
         defineField({
-            name: 'score',
-            title: 'Risk Score (0-100)',
-            type: 'number',
-            validation: (Rule) => Rule.min(0).max(100),
-        }),
-        defineField({
-            name: 'findings',
-            title: 'Findings',
+            name: 'topHolders',
+            title: 'Top 10 Holders',
             type: 'array',
+            validation: Rule => Rule.length(10),      // FORCE EXACTLY 10
             of: [
                 {
                     type: 'object',
                     fields: [
-                        {
-                            name: 'severity',
-                            title: 'Severity',
-                            type: 'string',
-                            options: {
-                                list: ['critical', 'high', 'medium', 'low', 'info'],
-                            },
-                        },
-                        {
-                            name: 'category',
-                            title: 'Category',
-                            type: 'string',
-                        },
-                        {
-                            name: 'description',
-                            title: 'Description',
-                            type: 'text',
-                        },
-                        {
-                            name: 'recommendation',
-                            title: 'Recommendation',
-                            type: 'text',
-                        },
-                    ],
-                },
-            ],
+                        { name: 'rank', type: 'number', title: 'Rank' },
+                        { name: 'walletOwner', type: 'string', title: 'Wallet Owner' },
+                        { name: 'tokenAccount', type: 'string', title: 'Token Account' },
+                        { name: 'balance', type: 'number', title: 'Balance' },
+                        { name: 'percentage', type: 'number', title: '% of Supply' },
+                        { name: 'accountType', type: 'string', title: 'Account Type' }
+                    ]
+                }
+            ]
         }),
+
+        // -------------------------------
+        // HOLDER CONCENTRATION
+        // -------------------------------
         defineField({
-            name: 'metadata',
-            title: 'Metadata',
+            name: 'concentration',
+            title: 'Holder Concentration (%)',
             type: 'object',
             fields: [
-                {
-                    name: 'holderCount',
-                    title: 'Holder Count',
-                    type: 'number',
-                },
-                {
-                    name: 'topHolderPercentage',
-                    title: 'Top Holder Percentage',
-                    type: 'number',
-                },
-                {
-                    name: 'liquidityLocked',
-                    title: 'Liquidity Locked',
-                    type: 'boolean',
-                },
-                {
-                    name: 'contractVerified',
-                    title: 'Contract Verified',
-                    type: 'boolean',
-                },
-                {
-                    name: 'honeypotCheck',
-                    title: 'Honeypot Check',
-                    type: 'boolean',
-                },
-            ],
+                { name: 'top3', type: 'number', title: 'Top 3 Holders %' },
+                { name: 'top5', type: 'number', title: 'Top 5 Holders %' },
+                { name: 'top10', type: 'number', title: 'Top 10 Holders %' }
+            ]
         }),
+
+        // -------------------------------
+        // RISK SCORING
+        // -------------------------------
         defineField({
-            name: 'analyzedAt',
-            title: 'Analyzed At',
-            type: 'datetime',
-            validation: (Rule) => Rule.required(),
+            name: 'riskLevel',
+            title: 'Risk Level',
+            type: 'string',
+            options: {
+                list: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+            }
         }),
-    ],
+
+        defineField({
+            name: 'riskScore',
+            title: 'Risk Score (0–100)',
+            type: 'number'
+        }),
+
+        // -------------------------------
+        // CLAUDE REASONING
+        // -------------------------------
+        defineField({
+            name: 'claudeReasoning',
+            title: 'Claude Reasoning Summary',
+            type: 'text'
+        }),
+
+        // -------------------------------
+        // RISK BUBBLE IMAGE
+        // -------------------------------
+        defineField({
+            name: 'riskBubble',
+            title: 'Risk Bubble Image',
+            type: 'image'
+        }),
+
+        // -------------------------------
+        // RECOMMENDATIONS
+        // -------------------------------
+        defineField({
+            name: 'recommendations',
+            title: 'Recommendations',
+            type: 'array',
+            of: [{ type: 'string' }]
+        }),
+
+        // -------------------------------
+        // RAW JSON
+        // -------------------------------
+        defineField({
+            name: 'rawJson',
+            title: 'Raw JSON Data',
+            type: 'text'
+        }),
+
+        defineField({
+            name: 'timestamp',
+            title: 'Generated At',
+            type: 'datetime'
+        })
+    ]
 })

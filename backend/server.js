@@ -1,3 +1,4 @@
+import ngrok from '@ngrok/ngrok';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
@@ -142,15 +143,44 @@ app.use((err, req, res, next) => {
   });
 });
 
+let cloudflaredProcess = null;
+
 async function startServer() {
   try {
     await initializeMCPClient();
 
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
       console.log(`Server running on http://localhost:${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/health`);
-      console.log(`Search API: http://localhost:${PORT}/api/search`);
-      console.log(`Risk Analyzer API: http://localhost:${PORT}/api/risk-analyzer/:tokenId`);
+      
+      // Start ngrok tunnel for fixed URL
+      try {
+        const ngrokAuthToken = process.env.NGROK_AUTH_TOKEN;
+        
+        const listener = await ngrok.forward({
+          addr: PORT,
+          authtoken: ngrokAuthToken,
+        });
+        
+        const url = listener.url();
+        
+        console.log('\n🌐 Public URL (ngrok - fixed URL):');
+        console.log(`   ${url}`);
+        console.log(`\n📍 Endpoints:`);
+        console.log(`   Health check: ${url}/health`);
+        console.log(`   Search API: ${url}/api/search`);
+        console.log(`   Risk Analyzer API: ${url}/api/risk-analyzer/:tokenId`);
+        
+        if (!ngrokAuthToken || ngrokAuthToken === 'your_token_here') {
+          console.log('\n💡 Tip: Add NGROK_AUTH_TOKEN to .env for a permanent fixed URL');
+          console.log('   Get your token from: https://dashboard.ngrok.com/get-started/your-authtoken\n');
+        } else {
+          console.log('\n✅ Using authenticated ngrok - this URL will persist!\n');
+        }
+        
+      } catch (ngrokError) {
+        console.error('Failed to start ngrok tunnel:', ngrokError.message);
+        console.log('Server still accessible locally at http://localhost:' + PORT);
+      }
     });
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -162,6 +192,14 @@ process.on('SIGINT', async () => {
   console.log('\nShutting down gracefully...');
   if (mcpClient) {
     await mcpClient.close();
+  }
+  if (cloudflaredProcess) {
+    cloudflaredProcess.kill();
+  }
+  try {
+    await ngrok.disconnect();
+  } catch (e) {
+    // Ignore disconnect errors
   }
   process.exit(0);
 });
