@@ -1,8 +1,8 @@
-import {defineCliConfig} from 'sanity/cli'
-import 'dotenv/config'
+import { defineCliConfig } from 'sanity/cli'
+// import 'dotenv/config'
 
-const projectId = process.env.SANITY_PROJECT_ID
-const dataset = process.env.SANITY_DATASET || 'production'
+const projectId = '4ekjvbr6'
+const dataset = 'production'
 
 if (!projectId) {
   throw new Error('Missing required environment variable: SANITY_PROJECT_ID')

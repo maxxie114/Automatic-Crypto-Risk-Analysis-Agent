@@ -54,7 +54,7 @@ export default function SearchPage() {
               type="submit"
               className="h-12 px-8 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl transition-all duration-200 flex items-center gap-2 hover:shadow-lg hover:scale-[1.02]"
             >
-              Analyze <ArrowRight className="h-4 w-4" />
+              Search <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </form>
