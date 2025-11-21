@@ -1,5 +1,3 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
@@ -10,32 +8,108 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const MCP_SERVER_URL = 'http://167.99.111.80:3001/mcp';
 
 app.use(cors());
 app.use(express.json());
 
 let mcpClient = null;
 
+// HTTP-based MCP client wrapper for StreamableHTTPServerTransport
+class HttpMcpClient {
+  constructor(url) {
+    this.url = url;
+    this.requestId = 0;
+  }
+
+  async sendRequest(method, params = {}) {
+    this.requestId++;
+    
+    const payload = {
+      jsonrpc: '2.0',
+      id: this.requestId,
+      method,
+      params
+    };
+
+    const response = await fetch(this.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
+    }
+
+    // Parse SSE stream
+    const text = await response.text();
+    const lines = text.split('\n');
+    let result = null;
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = JSON.parse(line.substring(6));
+        
+        if (data.error) {
+          throw new Error(data.error.message || 'MCP request failed');
+        }
+        
+        // Look for the response with matching ID
+        if (data.id === this.requestId) {
+          result = data.result;
+        }
+      }
+    }
+
+    if (result === null) {
+      throw new Error('No valid response received from MCP server');
+    }
+
+    return result;
+  }
+
+  async callTool({ name, arguments: args }) {
+    return await this.sendRequest('tools/call', {
+      name,
+      arguments: args
+    });
+  }
+
+  async listTools() {
+    return await this.sendRequest('tools/list', {});
+  }
+
+  async close() {
+    // No-op for HTTP client
+  }
+}
+
 async function initializeMCPClient() {
   try {
-    const transport = new StdioClientTransport({
-      command: 'node',
-      args: ['../mcp_server/mcpServer.js'],
-      env: process.env
+    mcpClient = new HttpMcpClient(MCP_SERVER_URL);
+    
+    console.log(`Connecting to MCP HTTP server at ${MCP_SERVER_URL}`);
+    
+    // Initialize the connection
+    await mcpClient.sendRequest('initialize', {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: {
+        name: 'crypto-risk-backend',
+        version: '1.0.0'
+      }
     });
-
-    mcpClient = new Client({
-      name: 'crypto-risk-backend',
-      version: '1.0.0'
-    }, {
-      capabilities: {}
-    });
-
-    await mcpClient.connect(transport);
-    console.log('MCP custom server connected successfully');
-
+    
+    console.log('MCP connection initialized');
+    
     const tools = await mcpClient.listTools();
     console.log('Available MCP tools:', tools.tools.map(t => t.name));
+    console.log('MCP HTTP server connected successfully');
 
     return mcpClient;
   } catch (error) {
