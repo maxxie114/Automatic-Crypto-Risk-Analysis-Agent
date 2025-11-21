@@ -8,5 +8,4 @@ fastapi
 uvicorn[standard]
 pydantic
 google-generativeai
-ssl
 certifi

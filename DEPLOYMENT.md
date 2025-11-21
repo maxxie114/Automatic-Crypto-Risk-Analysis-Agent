@@ -59,18 +59,73 @@ gunicorn api:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
 
 ### Docker Deployment
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-COPY . .
-EXPOSE 8000
-
-CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+```bash
+# Build and run locally
+docker build -t meme-coin-api .
+docker run -d --name meme_coin_api -p 8000:8000 --env-file .env meme-coin-api
 ```
+
+#### Compose
+```yaml
+version: "3.8"
+services:
+  api:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=${PORT:-8000}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    command: sh -c "uvicorn api:app --host ${HOST} --port ${PORT} --workers ${WORKERS:-2}"
+    restart: unless-stopped
+```
+
+### DigitalOcean Droplet
+```bash
+# 1) On the droplet
+sudo apt-get update -y
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update -y
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# 2) Clone repository
+git clone https://github.com/maxxie114/Automatic-Crypto-Risk-Analysis-Agent.git
+cd Automatic-Crypto-Risk-Analysis-Agent
+git checkout feature/api-docs-cleanup
+
+# 3) Configure environment
+cp .env.example .env
+nano .env
+# Set GOOGLE_API_KEY and any other variables
+
+# 4) Start service with Compose
+sudo docker compose up -d --build
+
+# 5) Verify
+curl http://localhost:8000/health
+```
+
+#### Firewall
+```bash
+sudo ufw allow 22/tcp
+sudo ufw allow 8000/tcp
+sudo ufw enable
+sudo ufw status
+```
+
+#### Domain and HTTPS (Optional)
+Use Nginx as a reverse proxy on port 80/443 and point to `http://localhost:8000`.
 
 ### Environment Variables
 
@@ -78,6 +133,8 @@ CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
 - `PORT` - Server port (default: 8000)
 - `HOST` - Server host (default: 0.0.0.0)
 - `ENVIRONMENT` - Environment mode (development/production)
+- `LOG_LEVEL` - Logging level (default: INFO)
+- `WORKERS` - Uvicorn workers (default: 2)
 
 ## API Usage Examples
 

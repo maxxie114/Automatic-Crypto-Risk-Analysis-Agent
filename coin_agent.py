@@ -7,14 +7,13 @@ from datetime import datetime
 import asyncio
 import aiohttp
 from duckduckgo_search import DDGS
-from mcp_server import DuckDuckGoMCPServer
 from ai_blog_generator import AIBlogGenerator
 
 class MemeCoinAgent:
     def __init__(self, enable_ai=True):
         self.dex_screener_base = "https://api.dexscreener.com/latest/dex"
         self.coingecko_base = "https://api.coingecko.com/api/v3"
-        self.mcp_server = DuckDuckGoMCPServer()  # Initialize MCP server
+        
         
         # Initialize AI blog generator only if AI is enabled
         if enable_ai:
@@ -62,84 +61,46 @@ class MemeCoinAgent:
             return {"error": f"CoinGecko search failed: {str(e)}"}
     
     async def search_web_news(self, coin_name: str) -> List[Dict]:
-        """Search for recent news about the coin using MCP DuckDuckGo"""
         try:
-            # Use MCP server for enhanced web search
-            # Search for news specifically
-            request = {
-                "method": "news_search",
-                "params": {
-                    "query": f"{coin_name} meme coin crypto",
-                    "max_results": 5
-                }
-            }
-            
-            result = await self.mcp_server.handle_request(request)
-            
-            if "error" in result:
-                return [{"error": result["error"]}]
-            
-            return result.get("result", [])
-            
+            with DDGS() as ddgs:
+                results: List[Dict] = []
+                search_query = f"{coin_name} meme coin crypto news"
+                for item in ddgs.text(search_query, max_results=5):
+                    results.append({
+                        "title": item.get("title", ""),
+                        "link": item.get("href", ""),
+                        "snippet": item.get("body", "")[:200]
+                    })
+                return results
         except Exception as e:
-            # Fallback to direct DDGS if MCP fails
-            try:
-                with DDGS() as ddgs:
-                    results = []
-                    search_query = f"{coin_name} meme coin crypto news 2024"
-                    
-                    for result in ddgs.text(search_query, max_results=5):
-                        results.append({
-                            "title": result.get("title", ""),
-                            "link": result.get("href", ""),
-                            "snippet": result.get("body", "")[:200]
-                        })
-                    return results
-            except Exception as fallback_error:
-                return [{"error": f"Web search failed: {str(e)}, fallback: {str(fallback_error)}"}]
+            return [{"error": f"Web search failed: {str(e)}"}]
     
     async def search_social_media(self, coin_name: str, platform: str = "all") -> List[Dict]:
-        """Search for social media mentions using MCP"""
         try:
-            # Search for social media mentions
-            request = {
-                "method": "social_search",
-                "params": {
-                    "query": f"{coin_name} crypto",
-                    "platform": platform,
-                    "max_results": 5
-                }
-            }
-            
-            result = await self.mcp_server.handle_request(request)
-            
-            if "error" in result:
-                return [{"error": result["error"]}]
-            
-            return result.get("result", [])
-            
+            with DDGS() as ddgs:
+                results: List[Dict] = []
+                search_query = f"{coin_name} crypto community"
+                for item in ddgs.text(search_query, max_results=5):
+                    results.append({
+                        "title": item.get("title", ""),
+                        "link": item.get("href", ""),
+                        "snippet": item.get("body", "")[:200]
+                    })
+                return results
         except Exception as e:
             return [{"error": f"Social search failed: {str(e)}"}]
     
     async def search_general_web(self, query: str, max_results: int = 5) -> List[Dict]:
-        """General web search using MCP"""
         try:
-            request = {
-                "method": "web_search",
-                "params": {
-                    "query": query,
-                    "max_results": max_results,
-                    "time_range": "week"
-                }
-            }
-            
-            result = await self.mcp_server.handle_request(request)
-            
-            if "error" in result:
-                return [{"error": result["error"]}]
-            
-            return result.get("result", [])
-            
+            with DDGS() as ddgs:
+                results: List[Dict] = []
+                for item in ddgs.text(query, max_results=max_results):
+                    results.append({
+                        "title": item.get("title", ""),
+                        "link": item.get("href", ""),
+                        "snippet": item.get("body", "")[:200]
+                    })
+                return results
         except Exception as e:
             return [{"error": f"Web search failed: {str(e)}"}]
     
@@ -217,7 +178,7 @@ class MemeCoinAgent:
             }
     
     async def get_detailed_analysis(self, coin_name: str) -> Dict:
-        """Get comprehensive analysis of a meme coin using MCP-enhanced search"""
+        """Get comprehensive analysis of a meme coin"""
         print(f"🔍 Researching {coin_name}...")
         
         # Run searches in parallel

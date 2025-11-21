@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.o
+*.a
+.env
+.env.*
+.venv
+venv/
+.git
+.gitignore
+*.log
+logs/
+.trae/
