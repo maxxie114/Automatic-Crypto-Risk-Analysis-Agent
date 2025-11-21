@@ -1,0 +1,43 @@
+{
+  "name": "production-agent-hack",
+  "private": true,
+  "version": "1.0.0",
+  "main": "sanity.config.ts",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "sanity dev",
+    "start": "sanity start",
+    "build": "sanity build",
+    "deploy": "sanity deploy",
+    "deploy-graphql": "sanity graphql deploy",
+    "seed": "sanity exec scripts/seed.ts --with-user-token",
+    "watcher": "sanity exec scripts/watcher.ts --with-user-token"
+  },
+  "keywords": [
+    "sanity"
+  ],
+  "dependencies": {
+    "@sanity/vision": "^4.18.0",
+    "react": "^19.1",
+    "react-dom": "^19.1",
+    "sanity": "^4.17.0",
+    "styled-components": "^6.1.18"
+  },
+  "devDependencies": {
+    "@sanity/eslint-config-studio": "^5.0.2",
+    "@types/react": "^19.1",
+    "dotenv": "^17.2.3",
+    "eslint": "^9.28",
+    "prettier": "^3.5",
+    "typescript": "^5.8"
+  },
+  "prettier": {
+    "semi": false,
+    "printWidth": 100,
+    "bracketSpacing": false,
+    "singleQuote": true
+  },
+  "overrides": {
+    "glob": "^10.5.0"
+  }
+}
