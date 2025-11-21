@@ -13,7 +13,7 @@ export default function Navbar() {
             </Link>
           </div>
           <div className="flex items-center gap-6">
-            <Link href="/" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+            <Link href="/dashboard" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
               Dashboard
             </Link>
             <div className="h-4 w-px bg-gray-200"></div>
