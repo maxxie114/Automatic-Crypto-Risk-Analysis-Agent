@@ -2,7 +2,7 @@
   "name": "production-agent-hack",
   "private": true,
   "version": "1.0.0",
-  "main": "package.json",
+  "main": "sanity.config.ts",
   "license": "UNLICENSED",
   "scripts": {
     "dev": "sanity dev",
