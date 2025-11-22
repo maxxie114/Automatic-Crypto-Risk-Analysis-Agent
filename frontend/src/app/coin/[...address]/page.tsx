@@ -131,8 +131,13 @@ export default async function CoinPage({
   const fullAddress = parseTokenAddress(addressSegments);
   const data = await getCoinData(fullAddress);
 
-  console.log('CoinPage: Raw segments:', addressSegments);
-  console.log('CoinPage: Parsed address:', fullAddress);
+  const { address: addressSegments } = await params;
+  const fullAddress = parseTokenAddress(addressSegments);
+  const data = await getCoinData(fullAddress);
+
+  return (
+    <CoinAnalysisWrapper 
+      address={fullAddress}
 
   return (
     <CoinAnalysisWrapper 
