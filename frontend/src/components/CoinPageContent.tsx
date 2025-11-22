@@ -1,4 +1,3 @@
-import { client } from "@/sanity/client";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -14,110 +13,13 @@ import {
 import RiskBadge from "@/components/RiskBadge";
 import AnalyzeButton from "@/components/AnalyzeButton";
 
-// Revalidate every 10 seconds
-export const revalidate = 10;
-
-async function getCoinData(address: string) {
-  const query = `{
-    "analysis": *[_type == "risk" && coin->address == $address] | order(assessedAt desc)[0] {
-      overallRisk,
-      riskScore,
-      rugPullRisk,
-      liquidityRisk,
-      contractRisk,
-      holderRisk,
-      volatilityRisk,
-      flags,
-      recommendation,
-      assessedAt,
-      coin->{
-        name,
-        symbol,
-        address,
-        priceUsd,
-        priceChange24h,
-        volume24h,
-        liquidity,
-        marketCap,
-        fdv,
-        url,
-        createdAt
-      }
-    },
-    "logs": *[_type == "agentLog" && coin->address == $address] | order(timestamp desc)[0...5] {
-      _id,
-      action,
-      status,
-      message,
-      timestamp
-    }
-  }`;
-
-  let data: any = { analysis: null, logs: [] };
-
-  try {
-    data = await client.fetch(query, { address });
-  } catch (error) {
-    console.error("Sanity fetch error:", error);
-  }
-
-  // If no analysis found in Sanity, try to fetch from DexScreener
-  if (!data.analysis) {
-    try {
-      const response = await fetch(
-        `https://api.dexscreener.com/latest/dex/tokens/${address}`
-      );
-      const dexData = await response.json();
-
-      if (dexData.pairs && dexData.pairs.length > 0) {
-        const bestPair = dexData.pairs.sort(
-          (a: any, b: any) => b.liquidity.usd - a.liquidity.usd
-        )[0];
-
-        // Create a mock analysis object with DexScreener data
-        data.analysis = {
-          coin: {
-            name: bestPair.baseToken.name,
-            symbol: bestPair.baseToken.symbol,
-            address: bestPair.baseToken.address,
-            priceUsd: parseFloat(bestPair.priceUsd || "0"),
-            priceChange24h: bestPair.priceChange?.h24 || 0,
-            volume24h: bestPair.volume?.h24 || 0,
-            liquidity: bestPair.liquidity?.usd || 0,
-            marketCap: bestPair.marketCap || 0,
-            fdv: bestPair.fdv || 0,
-            url: bestPair.url,
-          },
-          overallRisk: "unknown",
-          riskScore: 0,
-          rugPullRisk: 0,
-          liquidityRisk: 0,
-          contractRisk: 0,
-          holderRisk: 0,
-          volatilityRisk: 0,
-          flags: [],
-          recommendation: "pending_analysis",
-          assessedAt: new Date().toISOString(),
-          fromDexScreener: true,
-        };
-      }
-    } catch (error) {
-      console.error("Failed to fetch from DexScreener:", error);
-    }
-  }
-
-  return data;
+interface Props {
+  address: string;
+  analysis: any;
+  logs: any[];
 }
 
-export default async function CoinPage({
-  params,
-}: {
-  params: Promise<{ address: string }>;
-}) {
-  const { address } = await params;
-  const data = await getCoinData(address);
-  const analysis = data.analysis;
-
+export default function CoinPageContent({ address, analysis, logs }: Props) {
   if (!analysis) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
@@ -135,7 +37,19 @@ export default async function CoinPage({
     );
   }
 
-  const coin = analysis.coin;
+  // Handle both new schema (riskReport) and legacy schema (risk with coin field)
+  const coin = analysis.coin || {
+    name: analysis.tokenName || "Unknown",
+    symbol: analysis.tokenSymbol || "Unknown", 
+    address: analysis.tokenAddress || address,
+    priceUsd: 0, // Will be fetched from DexScreener if needed
+    priceChange24h: 0,
+    volume24h: 0,
+    liquidity: 0,
+    marketCap: 0,
+    fdv: 0,
+    url: null,
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -190,7 +104,7 @@ export default async function CoinPage({
             </div>
             <div className="pl-4 border-l border-gray-200">
               <RiskBadge
-                level={analysis.overallRisk}
+                level={analysis.riskLevel || analysis.overallRisk}
                 score={analysis.riskScore}
               />
             </div>
@@ -198,33 +112,34 @@ export default async function CoinPage({
         </div>
       </div>
 
-      {/* Pending Analysis Notice */}
-      {analysis.fromDexScreener && (
-        <div className="mb-6 p-6 bg-amber-50 border border-amber-200 rounded-xl">
-          <div className="flex flex-col md:flex-row items-start gap-6">
-            <div className="flex-1 flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-              <div>
-                <h3 className="font-semibold text-amber-900">
-                  Pending Risk Analysis
-                </h3>
-                <p className="text-sm text-amber-700 mt-1">
-                  This token has not been analyzed yet. The data shown is from
-                  DexScreener. Click the button to trigger an automated risk
-                  analysis now.
-                </p>
-              </div>
-            </div>
-            <div className="w-full md:w-auto md:min-w-[200px]">
-              <AnalyzeButton
-                tokenAddress={coin.address}
-                tokenSymbol={coin.symbol}
-                tokenName={coin.name}
-              />
+      {/* Analysis Action Section - Always visible */}
+      <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-xl">
+        <div className="flex flex-col md:flex-row items-start gap-6">
+          <div className="flex-1 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+            <div>
+              <h3 className="font-semibold text-blue-900">
+                {analysis.fromDexScreener ? 'Pending Risk Analysis' : 'Risk Analysis Available'}
+              </h3>
+              <p className="text-sm text-blue-700 mt-1">
+                {analysis.fromDexScreener 
+                  ? 'This token has not been analyzed yet. The data shown is from DexScreener. Click the button to trigger an automated risk analysis now.'
+                  : analysis.riskLevel || analysis.recommendations 
+                    ? 'Analysis completed. Click the button to run a fresh analysis or get updated insights.'
+                    : 'Click the button to run a comprehensive risk analysis for this token.'
+                }
+              </p>
             </div>
           </div>
+          <div className="w-full md:w-auto md:min-w-[200px]">
+            <AnalyzeButton
+              tokenAddress={coin.address}
+              tokenSymbol={coin.symbol}
+              tokenName={coin.name}
+            />
+          </div>
         </div>
-      )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Analysis Column */}
@@ -256,9 +171,41 @@ export default async function CoinPage({
                       style={{ width: `${analysis.riskScore}%` }}
                     ></div>
                   </div>
+                  {analysis.riskLevel && (
+                    <div className="flex justify-between text-xs mt-1">
+                      <span className="text-gray-500">Risk Level:</span>
+                      <span className={`font-medium uppercase ${
+                        analysis.riskLevel === 'HIGH' ? 'text-red-600' :
+                        analysis.riskLevel === 'MEDIUM' ? 'text-amber-600' :
+                        'text-emerald-600'
+                      }`}>
+                        {analysis.riskLevel}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Concentration Data */}
+                {analysis.concentration ? (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">Holder Concentration</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                        <span className="text-xs text-gray-600">Top 3 Holders</span>
+                        <span className="text-sm font-semibold text-gray-900">{analysis.concentration.top3}%</span>
+                      </div>
+                      <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                        <span className="text-xs text-gray-600">Top 5 Holders</span>
+                        <span className="text-sm font-semibold text-gray-900">{analysis.concentration.top5}%</span>
+                      </div>
+                      <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                        <span className="text-xs text-gray-600">Top 10 Holders</span>
+                        <span className="text-sm font-semibold text-gray-900">{analysis.concentration.top10}%</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-gray-50 rounded-lg">
                     <div className="text-xs text-gray-500 mb-1">
                       Rug Pull Risk
@@ -300,12 +247,51 @@ export default async function CoinPage({
                     </div>
                   </div>
                 </div>
+                )}
               </div>
 
               <div className="border-l border-gray-100 pl-0 md:pl-8">
                 <h3 className="text-sm font-medium text-gray-900 mb-4">
-                  Risk Flags
+                  Analysis Results
                 </h3>
+                
+                {/* Recommendations from API */}
+                {analysis.recommendations && analysis.recommendations.length > 0 ? (
+                  <div className="space-y-3 mb-6">
+                    {analysis.recommendations.map((rec: string, idx: number) => (
+                      <div
+                        key={idx}
+                        className={`flex gap-3 items-start p-3 rounded-lg border ${
+                          rec.includes('HIGH RISK') || rec.includes('⚠️') 
+                            ? 'bg-red-50 border-red-100' 
+                            : rec.includes('MEDIUM') || rec.includes('caution')
+                            ? 'bg-amber-50 border-amber-100'
+                            : 'bg-blue-50 border-blue-100'
+                        }`}
+                      >
+                        {rec.includes('HIGH RISK') || rec.includes('⚠️') ? (
+                          <XCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                        ) : rec.includes('MEDIUM') || rec.includes('caution') ? (
+                          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                        )}
+                        <p className={`text-xs ${
+                          rec.includes('HIGH RISK') || rec.includes('⚠️') 
+                            ? 'text-red-700' 
+                            : rec.includes('MEDIUM') || rec.includes('caution')
+                            ? 'text-amber-700'
+                            : 'text-blue-700'
+                        }`}>
+                          {rec}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {/* Risk Flags */}
+                <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wider mb-2">Risk Flags</h4>
                 {analysis.flags && analysis.flags.length > 0 ? (
                   <div className="space-y-3">
                     {analysis.flags.map((flag: any, idx: number) => (
@@ -416,7 +402,7 @@ export default async function CoinPage({
               Recent Activity
             </h2>
             <div className="space-y-4">
-              {data.logs.map((log: any) => (
+              {logs.map((log: any) => (
                 <div
                   key={log._id}
                   className="text-sm border-l-2 border-gray-100 pl-3 py-1"
@@ -427,7 +413,7 @@ export default async function CoinPage({
                   </p>
                 </div>
               ))}
-              {data.logs.length === 0 && (
+              {logs.length === 0 && (
                 <p className="text-sm text-gray-500">
                   No recent activity logs.
                 </p>
