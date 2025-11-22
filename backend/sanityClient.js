@@ -196,15 +196,8 @@ export async function createRiskReport(tokenData, riskAnalysis, holderAnalysis) 
       top10: holderAnalysis.concentration?.top10 || 0
     };
 
-    // Add holder-based risk factors
-    const top10Concentration = holderAnalysis.concentration?.top10 || 0;
-    if (top10Concentration > 80) {
-      reportDoc.riskLevel = 'CRITICAL';
-      reportDoc.riskScore = Math.max(reportDoc.riskScore, 90);
-    } else if (top10Concentration > 60) {
-      reportDoc.riskLevel = 'HIGH';
-      reportDoc.riskScore = Math.max(reportDoc.riskScore, 75);
-    }
+    // Use the risk assessment from the API as-is, don't override it
+    // The API already considers holder concentration in its scoring
   }
 
   // Add raw analysis data

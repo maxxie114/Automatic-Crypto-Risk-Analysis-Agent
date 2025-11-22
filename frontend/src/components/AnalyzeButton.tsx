@@ -32,10 +32,26 @@ export default function AnalyzeButton({
 
       if (response.success) {
         setSuccess(true);
-        // Reload the page after 5 seconds to give Sanity time to save
+        
+        // Store analysis result in localStorage
+        const responseData = response as any;
+        const analysisData = {
+          tokenAddress: responseData.tokenAddress || tokenAddress,
+          riskLevel: responseData.riskLevel,
+          riskScore: responseData.riskScore,
+          concentration: responseData.concentration,
+          recommendations: responseData.recommendations,
+          timestamp: responseData.timestamp,
+          reportId: responseData.reportId
+        };
+        
+        localStorage.setItem(`analysis_${tokenAddress}`, JSON.stringify(analysisData));
+        console.log('Stored analysis in localStorage:', analysisData);
+        
+        // Reload the page after 2 seconds to show the results
         setTimeout(() => {
           window.location.reload();
-        }, 5000);
+        }, 2000);
       } else {
         setError(response.error || "Analysis failed");
       }
