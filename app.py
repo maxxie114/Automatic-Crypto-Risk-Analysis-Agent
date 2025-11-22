@@ -2,6 +2,9 @@ import streamlit as st
 import asyncio
 from coin_agent import MemeCoinAgent
 import json
+from dotenv import load_dotenv
+import streamlit.components.v1 as components
+load_dotenv(override=True)
 
 # Page configuration
 st.set_page_config(
@@ -86,58 +89,120 @@ with col2:
     st.write("")  # Spacing
     search_button = st.button("🔍 Research", type="primary")
 
+if False and not search_button:
+    components.html(
+        """
+<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"UTF-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>Coin Analysis — Bright Theme</title>
+  <style>
+    :root { --bg:#f5f7fa; --panel:#ffffff; --muted:#64748b; --text:#0f172a; --brand:#22c55e; --accent:#2563eb; --card:#ffffff; --chip:#e2e8f0; --border:#cbd5e1; --shadow:0 4px 10px rgba(0,0,0,0.1); --radius:10px; }
+    * { box-sizing:border-box; } html,body { height:100%; margin:0; }
+    body { padding:24px; background:linear-gradient(180deg,#f8fafc,#e2e8f0); color:var(--text); font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,\"Helvetica Neue\",Arial; }
+    h1,h2,h3 { margin:0 0 .5rem; line-height:1.2; } a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+    .container { max-width:1100px; margin:0 auto; }
+    .search-bar { display:flex; gap:10px; align-items:center; padding-bottom:16px; margin-bottom:20px; }
+    .search-bar .field { flex:1; position:relative; }
+    .search-bar input[type=\"text\"] { width:100%; height:2.75rem; padding:0 14px 0 40px; border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--text); font-size:16px; box-shadow:inset 0 1px 2px rgba(0,0,0,0.05); }
+    .search-bar .icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:.6; }
+    .search-bar button { height:2.55rem; padding:0 18px; font-weight:600; border-radius:999px; border:none; background:linear-gradient(180deg,#38bdf8,#2563eb); color:#fff; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.3); }
+    .search-bar button:hover { filter:brightness(1.1); }
+    .summary { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; }
+    .summary .row { display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+    .chip { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; background:var(--chip); border:1px solid var(--border); font-size:.92rem; color:var(--text); }
+    .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:16px; margin-top:16px; }
+    .card { grid-column:span 12; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); }
+    .muted { color:var(--muted); }
+    @media (min-width:900px) { .card.span-4 { grid-column:span 4; } .card.span-6 { grid-column:span 6; } .card.span-8 { grid-column:span 8; } }
+    .list { display:grid; gap:10px; margin:8px 0 0; } .list-item { padding:12px; border-radius:8px; background:#f8fafc; border:1px solid var(--border); } .list-item h4 { margin:0 0 .25rem; font-size:1rem; }
+    .kv { display:grid; grid-template-columns:140px 1fr; gap:8px; margin-top:10px; } .kv div { padding:6px 10px; border-radius:8px; background:#f1f5f9; border:1px solid var(--border); }
+  </style>
+  </head>
+  <body>
+    <div class=\"container\">
+      <div class=\"search-bar\">
+        <div class=\"field\"><span class=\"icon\">🔎</span><input type=\"text\" placeholder=\"Enter coin name (e.g., PEPE)\" aria-label=\"Coin name\" /></div>
+        <button type=\"button\">Analyse</button>
+      </div>
+      <section class=\"summary\"> <h2>Summary</h2>
+        <div class=\"row\">
+          <span class=\"chip\">💰 Price: $0.000004147</span>
+          <span class=\"chip\">24h: -8.08%</span>
+          <span class=\"chip\">Volume: $2,554,619.12</span>
+          <span class=\"chip\">📊 Pepe</span>
+          <span class=\"chip\">Rank: #66</span>
+          <span class=\"chip\">📰 5 news items</span>
+          <span class=\"chip\">👥 16 social mentions</span>
+          <span class=\"chip\">🌐 5 web sources</span>
+        </div>
+      </section>
+      <div class=\"grid\">
+        <section class=\"card span-6\"><h3>💰 Market Data</h3>
+          <div class=\"kv\"><div>Price USD</div><div>$0.000004147</div><div>24h Change</div><div>-8.08%</div><div>24h Volume</div><div>$2,554,619.12</div></div>
+        </section>
+        <section class=\"card span-6\"><h3>🔍 Trading Details</h3>
+          <div class=\"kv\"><div>Blockchain</div><div>ethereum</div><div>DEX</div><div>uniswap</div><div>Liquidity</div><div>$30,326,942.81</div><div>Pairs Found</div><div>30</div></div>
+        </section>
+        <section class=\"card span-12\"><h3>📰 News</h3>
+          <div class=\"list\">
+            <article class=\"list-item\"><h4>Pepe (footballer, born 1983) — Wikipedia</h4><p class=\"muted\">Born and raised in Brazil, Pepe moved to Portugal to sign with Marítimo... (example content)</p></article>
+            <article class=\"list-item\"><h4>PEPE Price Prediction: Is Pepe Headed for a Deeper Crash?</h4><p class=\"muted\">3 days ago — Pepe’s price outlook has taken a sharp hit... (example content)</p></article>
+            <article class=\"list-item\"><h4>Pepe Is Back and the Revival Is Already Everywhere — MSN</h4><p class=\"muted\">3 days ago — This video marks the unexpected return of Pepe... (example content)</p></article>
+          </div>
+        </section>
+        <section class=\"card span-4\"><h3>👥 Social Media</h3>
+          <div class=\"list\"><div class=\"list-item\">💬 PEPE site homepage has a frog... <span class=\"muted\">(source unknown)</span></div><div class=\"list-item\">💬 The PEPE airdrop just went live! <span class=\"muted\">(source unknown)</span></div><div class=\"list-item\">💬 reddit.com/domain/crypto-news-flash.com/top</div></div>
+        </section>
+        <section class=\"card span-12\"><h3>🌐 Web Analysis</h3><p class=\"muted\">Summaries of 5 web sources would appear here.</p></section>
+        <section class=\"card span-12\"><h3>📝 AI Blog</h3><p class=\"muted\">Auto-generated blog section placeholder.</p></section>
+      </div>
+    </div>
+  </body>
+</html>
+""",
+        height=1400,
+        scrolling=True,
+    )
+
 if search_button and coin_name:
     with st.spinner(f"🔍 Researching {coin_name}..."):
         try:
-            # Run the analysis
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             analysis = loop.run_until_complete(agent.get_detailed_analysis(coin_name))
-            
-            # Display summary
             st.success(f"✅ Analysis complete for {coin_name}!")
-            
-            # Summary card
             st.markdown("### 📊 Summary")
             st.markdown(f"<div class='success-message'>{analysis['summary']}</div>", unsafe_allow_html=True)
-            
-            # Create tabs for different sections
             tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["💰 Market Data", "📈 DEX Screener", "🎯 CoinGecko", "📰 News", "👥 Social Media", "🌐 Web Analysis", "📝 AI Blog"])
-            
             with tab1:
                 st.markdown("### 💰 Market Overview")
-                
-                # Price and volume data
                 if "best_pair" in analysis["dex_screener"]:
                     pair = analysis["dex_screener"]["best_pair"]
-                    
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         price = pair.get("price_usd", "N/A")
                         st.metric("💰 Price USD", f"${price}" if price != "N/A" else "N/A")
-                    
                     with col2:
                         change = pair.get("price_change_24h", "N/A")
                         if change != "N/A":
-                            change_val = float(change) if change != "N/A" else 0
-                            st.metric("📈 24h Change", f"{change}%", 
-                                     delta=f"{change}%", 
-                                     delta_color="normal" if change_val >= 0 else "inverse")
+                            try:
+                                change_val = float(change)
+                            except Exception:
+                                change_val = 0.0
+                            st.metric("📈 24h Change", f"{change}%", delta=f"{change}%", delta_color="normal" if change_val >= 0 else "inverse")
                         else:
                             st.metric("📈 24h Change", "N/A")
-                    
                     with col3:
                         volume = pair.get("volume_24h", "N/A")
                         st.metric("📊 24h Volume", f"${volume}" if volume != "N/A" else "N/A")
-                    
-                    # Additional details
                     st.markdown("#### 🔍 Trading Details")
                     details_col1, details_col2 = st.columns(2)
-                    
                     with details_col1:
-                        st.write(f"**Blockchain:** {pair.get('chain', 'N/A')}")
-                        st.write(f"**DEX:** {pair.get('dex', 'N/A')}")
-                    
+                        st.write(f"**Blockchain:** {pair.get('chain', pair.get('chainId', 'N/A'))}")
+                        st.write(f"**DEX:** {pair.get('dex', pair.get('dexId', 'N/A'))}")
                     with details_col2:
                         liquidity = pair.get("liquidity_usd", "N/A")
                         st.write(f"**Liquidity:** ${liquidity}" if liquidity != "N/A" else "**Liquidity:** N/A")

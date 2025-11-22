@@ -187,6 +187,9 @@ service_account.json
 *.key
 
 .trae/
+!Dockerfile
+!docker-compose.yml
+!.dockerignore
 
 # =============================================================================
 # LOG FILES

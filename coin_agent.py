@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 import asyncio
 import aiohttp
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from ai_blog_generator import AIBlogGenerator
 
 class MemeCoinAgent:
@@ -77,16 +77,29 @@ class MemeCoinAgent:
     
     async def search_social_media(self, coin_name: str, platform: str = "all") -> List[Dict]:
         try:
+            queries = [
+                f"site:reddit.com {coin_name} crypto",
+                f"site:twitter.com {coin_name}",
+                f"site:x.com {coin_name}",
+                f"site:t.me {coin_name}",
+                f"site:discord.com {coin_name} crypto",
+                f"site:medium.com {coin_name} token"
+            ]
+            results: List[Dict] = []
+            seen_links = set()
             with DDGS() as ddgs:
-                results: List[Dict] = []
-                search_query = f"{coin_name} crypto community"
-                for item in ddgs.text(search_query, max_results=5):
-                    results.append({
-                        "title": item.get("title", ""),
-                        "link": item.get("href", ""),
-                        "snippet": item.get("body", "")[:200]
-                    })
-                return results
+                for q in queries:
+                    for item in ddgs.text(q, max_results=3, timelimit='w'):
+                        link = item.get("href", "")
+                        if link and link not in seen_links:
+                            seen_links.add(link)
+                            results.append({
+                                "title": item.get("title", ""),
+                                "link": link,
+                                "snippet": item.get("body", "")[:200],
+                                "source_query": q
+                            })
+            return results
         except Exception as e:
             return [{"error": f"Social search failed: {str(e)}"}]
     
