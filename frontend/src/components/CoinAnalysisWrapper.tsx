@@ -55,8 +55,8 @@ export default function CoinAnalysisWrapper({ address, sanityAnalysis, logs }: P
             recommendations: localAnalysis.recommendations,
             timestamp: localAnalysis.timestamp,
             tokenAddress: localAnalysis.tokenAddress,
-            tokenName: "Unknown",
-            tokenSymbol: "Unknown",
+            tokenName: sanityAnalysis?.tokenName || sanityAnalysis?.coin?.name || "Unknown",
+            tokenSymbol: sanityAnalysis?.tokenSymbol || sanityAnalysis?.coin?.symbol || "Unknown",
             // Legacy fields
             overallRisk: localAnalysis.riskLevel?.toLowerCase(),
             rugPullRisk: null,
