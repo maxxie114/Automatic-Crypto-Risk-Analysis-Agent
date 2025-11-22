@@ -12,34 +12,19 @@ Backend API server that integrates with MCP Postman tools to analyze cryptocurre
 
 1. Install dependencies:
 ```bash
+cd backend
 npm install
 ```
 
-2. Create a `.env` file with required configuration:
+2. Create `.env` file:
 ```bash
 cp .env.example .env
 ```
-
-Edit `.env` and add your Sanity credentials:
-```
-PORT=8080
-SANITY_PROJECT_ID=your_project_id
-SANITY_DATASET=production
-SANITY_API_TOKEN=your_write_token
-```
-
-To get a Sanity API token:
-- Go to https://www.sanity.io/manage
-- Select your project
-- Go to API settings
-- Create a new token with "Editor" or "Administrator" permissions
 
 3. Start the server:
 ```bash
 npm start
 ```
-
-The server will run on `http://localhost:8080`.
 
 For development with auto-reload:
 ```bash

@@ -1,3 +1,4 @@
+import ngrok from '@ngrok/ngrok';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
@@ -10,20 +11,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const MCP_SERVER_URL = 'http://167.99.111.80:3001/mcp';
 
-// Configure CORS to allow frontend origins
-app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001', 
-    'https://localhost:3000',
-    /\.ngrok-free\.dev$/,  // Allow any ngrok domains
-    /\.vercel\.app$/,      // Allow Vercel deployments
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
-}));
-
+app.use(cors());
 app.use(express.json());
 
 let mcpClient = null;
@@ -45,71 +33,45 @@ class HttpMcpClient {
       params
     };
 
-    console.log(`MCP Request [${this.requestId}]: ${method}`, JSON.stringify(params).substring(0, 100));
+    const response = await fetch(this.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      body: JSON.stringify(payload)
+    });
 
-    // Add 30 second timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-    try {
-      const response = await fetch(this.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json, text/event-stream'
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const text = await response.text();
-        console.error(`MCP HTTP Error [${this.requestId}]:`, response.status, text);
-        throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
-      }
-
-      // Parse SSE stream
+    if (!response.ok) {
       const text = await response.text();
-      const lines = text.split('\n');
-      let result = null;
+      throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
+    }
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.substring(6));
-            
-            if (data.error) {
-              console.error(`MCP Error [${this.requestId}]:`, data.error);
-              throw new Error(data.error.message || 'MCP request failed');
-            }
-            
-            // Look for the response with matching ID
-            if (data.id === this.requestId) {
-              result = data.result;
-            }
-          } catch (parseError) {
-            console.warn(`Failed to parse SSE line: ${line}`);
-          }
+    // Parse SSE stream
+    const text = await response.text();
+    const lines = text.split('\n');
+    let result = null;
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = JSON.parse(line.substring(6));
+        
+        if (data.error) {
+          throw new Error(data.error.message || 'MCP request failed');
+        }
+        
+        // Look for the response with matching ID
+        if (data.id === this.requestId) {
+          result = data.result;
         }
       }
-
-      if (result === null) {
-        console.error(`MCP No Response [${this.requestId}]: Full response:`, text.substring(0, 500));
-        throw new Error('No valid response received from MCP server. The server may be down or unresponsive.');
-      }
-
-      console.log(`MCP Success [${this.requestId}]`);
-      return result;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        console.error(`MCP Timeout [${this.requestId}]: Request took longer than 30 seconds`);
-        throw new Error('MCP server request timed out after 30 seconds');
-      }
-      throw error;
     }
+
+    if (result === null) {
+      throw new Error('No valid response received from MCP server');
+    }
+
+    return result;
   }
 
   async callTool({ name, arguments: args }) {
@@ -181,15 +143,44 @@ app.use((err, req, res, next) => {
   });
 });
 
+let cloudflaredProcess = null;
+
 async function startServer() {
   try {
     await initializeMCPClient();
 
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
       console.log(`Server running on http://localhost:${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/health`);
-      console.log(`Search API: http://localhost:${PORT}/api/search`);
-      console.log(`Risk Analyzer API: http://localhost:${PORT}/api/risk-analyzer/:tokenId`);
+      
+      // Start ngrok tunnel for fixed URL
+      try {
+        const ngrokAuthToken = process.env.NGROK_AUTH_TOKEN;
+        
+        const listener = await ngrok.forward({
+          addr: PORT,
+          authtoken: ngrokAuthToken,
+        });
+        
+        const url = listener.url();
+        
+        console.log('\n🌐 Public URL (ngrok - fixed URL):');
+        console.log(`   ${url}`);
+        console.log(`\n📍 Endpoints:`);
+        console.log(`   Health check: ${url}/health`);
+        console.log(`   Search API: ${url}/api/search`);
+        console.log(`   Risk Analyzer API: ${url}/api/risk-analyzer/:tokenId`);
+        
+        if (!ngrokAuthToken || ngrokAuthToken === 'your_token_here') {
+          console.log('\n💡 Tip: Add NGROK_AUTH_TOKEN to .env for a permanent fixed URL');
+          console.log('   Get your token from: https://dashboard.ngrok.com/get-started/your-authtoken\n');
+        } else {
+          console.log('\n✅ Using authenticated ngrok - this URL will persist!\n');
+        }
+        
+      } catch (ngrokError) {
+        console.error('Failed to start ngrok tunnel:', ngrokError.message);
+        console.log('Server still accessible locally at http://localhost:' + PORT);
+      }
     });
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -201,6 +192,14 @@ process.on('SIGINT', async () => {
   console.log('\nShutting down gracefully...');
   if (mcpClient) {
     await mcpClient.close();
+  }
+  if (cloudflaredProcess) {
+    cloudflaredProcess.kill();
+  }
+  try {
+    await ngrok.disconnect();
+  } catch (e) {
+    // Ignore disconnect errors
   }
   process.exit(0);
 });

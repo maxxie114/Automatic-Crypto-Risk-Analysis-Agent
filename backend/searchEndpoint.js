@@ -1,6 +1,23 @@
+import { createClient } from '@sanity/client';
 import express from 'express';
 
 const router = express.Router();
+
+// Lazy-load Sanity client to ensure env vars are loaded
+let sanityClient = null;
+
+function getSanityClient() {
+  if (!sanityClient) {
+    sanityClient = createClient({
+      projectId: process.env.SANITY_PROJECT_ID,
+      dataset: process.env.SANITY_DATASET || 'production',
+      token: process.env.SANITY_TOKEN,
+      apiVersion: '2024-01-01',
+      useCdn: false,
+    });
+  }
+  return sanityClient;
+}
 
 router.post('/', async (req, res) => {
   const { query } = req.body;
@@ -72,13 +89,62 @@ router.post('/', async (req, res) => {
       };
     });
 
-    res.json({
-      success: true,
-      query: query,
-      data: formattedData,
-      count: formattedData.length,
-      timestamp: new Date().toISOString()
-    });
+    // Save to Sanity.io
+    console.log('Saving results to Sanity.io...');
+    
+    try {
+      const client = getSanityClient();
+      
+      // Create individual coin documents
+      const coinPromises = formattedData.map(coin => 
+        client.create({
+          _type: 'coin',
+          ...coin
+        })
+      );
+      
+      const savedCoins = await Promise.all(coinPromises);
+      console.log(`Saved ${savedCoins.length} coins to Sanity`);
+
+      // Create coinList document with coins array (add _key to each coin)
+      const coinsWithKeys = formattedData.map(coin => ({
+        _key: crypto.randomUUID(),
+        ...coin
+      }));
+
+      const coinList = await client.create({
+        _type: 'coinList',
+        query: query,
+        timestamp: new Date().toISOString(),
+        count: formattedData.length,
+        coins: coinsWithKeys
+      });
+
+      console.log('Created coinList document:', coinList._id);
+
+      res.json({
+        success: true,
+        query: query,
+        data: formattedData,
+        count: formattedData.length,
+        timestamp: new Date().toISOString(),
+        sanity: {
+          coinListId: coinList._id,
+          coinsCreated: savedCoins.length
+        }
+      });
+    } catch (sanityError) {
+      console.error('Sanity save error:', sanityError);
+      // Still return the data even if Sanity save fails
+      res.json({
+        success: true,
+        query: query,
+        data: formattedData,
+        count: formattedData.length,
+        timestamp: new Date().toISOString(),
+        sanityError: sanityError.message
+      });
+    }
 
   } catch (error) {
     console.error('Search error:', error);
