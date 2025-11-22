@@ -1,8 +1,8 @@
 import { defineField, defineType } from 'sanity'
 
 export default defineType({
-    name: 'riskReport',
-    title: 'Risk Report',
+    name: 'tokenAnalysis',
+    title: 'Token Analysis',
     type: 'document',
 
     fields: [
@@ -39,10 +39,11 @@ export default defineType({
             name: 'topHolders',
             title: 'Top 10 Holders',
             type: 'array',
-            validation: Rule => Rule.length(10),      // FORCE EXACTLY 10
+            validation: Rule => Rule.max(10),
             of: [
                 {
                     type: 'object',
+                    name: 'holder',
                     fields: [
                         { name: 'rank', type: 'number', title: 'Rank' },
                         { name: 'walletOwner', type: 'string', title: 'Wallet Owner' },

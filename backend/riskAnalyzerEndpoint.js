@@ -19,13 +19,23 @@ function getAnthropicClient() {
 
 function getSanityClient() {
   if (!sanityClient) {
+    const projectId = process.env.SANITY_PROJECT_ID;
+    const dataset = process.env.SANITY_DATASET;
+    const token = process.env.SANITY_TOKEN;
+    
+    if (!projectId || !dataset || !token) {
+      throw new Error('Missing Sanity configuration. Check SANITY_PROJECT_ID, SANITY_DATASET, and SANITY_TOKEN in .env');
+    }
+    
     sanityClient = createClient({
-      projectId: process.env.SANITY_PROJECT_ID,
-      dataset: process.env.SANITY_DATASET,
-      token: process.env.SANITY_TOKEN,
+      projectId,
+      dataset,
+      token,
       apiVersion: '2024-01-01',
       useCdn: false
     });
+    
+    console.log('🔧 Sanity client initialized:', { projectId, dataset });
   }
   return sanityClient;
 }
@@ -48,8 +58,6 @@ router.post('/analyze', async (req, res) => {
       });
     }
 
-    console.log(`Analyzing risk for token address: ${tokenAddress}`);
-
     // Call the find_account_info MCP tool
     const accountInfo = await mcpClient.callTool({
       name: 'find_account_info',
@@ -59,45 +67,91 @@ router.post('/analyze', async (req, res) => {
       }
     });
 
-    // Parse account data
-    let parsedData = accountInfo.content;
-    if (typeof parsedData === 'string') {
-      try {
-        parsedData = JSON.parse(parsedData);
-      } catch (e) {
-        parsedData = { raw: accountInfo.content };
+    // Parse MCP response - handle nested content structure
+    let parsedData = {};
+    try {
+      // MCP returns content array with text field
+      if (accountInfo.content && Array.isArray(accountInfo.content)) {
+        const textContent = accountInfo.content[0]?.text || accountInfo.content[0];
+        parsedData = typeof textContent === 'string' ? JSON.parse(textContent) : textContent;
+      } else if (typeof accountInfo.content === 'string') {
+        parsedData = JSON.parse(accountInfo.content);
+      } else {
+        parsedData = accountInfo.content || {};
       }
+    } catch (e) {
+      console.error('Error parsing MCP response:', e);
+      parsedData = { raw: accountInfo.content };
     }
 
+    // Use concentration from MCP if available, otherwise calculate
+    const concentration = parsedData.concentration || {
+      top3: calculateConcentration(parsedData.holders || [], 3),
+      top5: calculateConcentration(parsedData.holders || [], 5),
+      top10: calculateConcentration(parsedData.holders || [], 10)
+    };
+
+    console.log('📊 Starting risk analysis for:', tokenAddress);
+    
     // Perform basic risk analysis
-    const riskAnalysis = analyzeRisk(accountInfo.content, null);
+    const riskAnalysis = analyzeRisk(parsedData, null);
+    console.log('✅ Risk analysis complete:', riskAnalysis.riskLevel, `(${riskAnalysis.score}/100)`);
 
-    // Get Claude's reasoning
-    const claudeReasoning = await getClaudeReasoning(parsedData, riskAnalysis);
-
-    // Prepare data for Sanity
+    // Prepare data for Sanity (without Claude first)
     const riskReport = {
-      _type: 'riskReport',
+      _type: 'tokenAnalysis',
       tokenAddress: tokenAddress,
       tokenName: parsedData.tokenName || parsedData.name || 'Unknown',
       tokenSymbol: parsedData.tokenSymbol || parsedData.symbol || 'Unknown',
       chain: 'solana',
-      topHolders: formatTopHolders(parsedData.topHolders || [], topN),
-      concentration: {
-        top3: calculateConcentration(parsedData.topHolders || [], 3),
-        top5: calculateConcentration(parsedData.topHolders || [], 5),
-        top10: calculateConcentration(parsedData.topHolders || [], 10)
-      },
+      topHolders: formatTopHolders(parsedData.holders || [], topN),
+      concentration: concentration,
       riskLevel: riskAnalysis.riskLevel,
       riskScore: riskAnalysis.score,
-      claudeReasoning: claudeReasoning,
+      claudeReasoning: 'Analysis in progress...',
       recommendations: riskAnalysis.recommendations,
       rawJson: JSON.stringify(parsedData, null, 2),
       timestamp: new Date().toISOString()
     };
 
+    console.log('💾 Saving initial report to Sanity...');
+    console.log('   Token:', riskReport.tokenName, `(${riskReport.tokenSymbol})`);
+    console.log('   Risk:', riskReport.riskLevel, `- Score: ${riskReport.riskScore}/100`);
+    console.log('   Concentration: Top3=${concentration.top3}%, Top10=${concentration.top10}%');
+    console.log('   Top Holders count:', riskReport.topHolders.length);
+    
     // Save to Sanity
-    const savedReport = await getSanityClient().create(riskReport);
+    let savedReport;
+    try {
+      savedReport = await getSanityClient().create(riskReport);
+      console.log('✅ Report saved to Sanity with ID:', savedReport._id);
+      console.log('   View at: https://production-agent-hack.sanity.studio/desk/tokenAnalysis;' + savedReport._id);
+    } catch (sanityError) {
+      console.error('❌ Sanity save error:', sanityError.message);
+      if (sanityError.response?.body) {
+        console.error('   Response body:', JSON.stringify(sanityError.response.body, null, 2));
+      }
+      throw sanityError;
+    }
+
+    // Now get Claude's reasoning asynchronously and update
+    console.log('🤖 Requesting Claude AI analysis (async)...');
+    getClaudeReasoning(parsedData, riskAnalysis, concentration)
+      .then(async (claudeReasoning) => {
+        console.log('✅ Claude analysis received, updating Sanity...');
+        try {
+          await getSanityClient()
+            .patch(savedReport._id)
+            .set({ claudeReasoning })
+            .commit();
+          console.log('✅ Claude analysis added to report:', savedReport._id);
+        } catch (updateError) {
+          console.error('❌ Failed to update with Claude analysis:', updateError.message);
+        }
+      })
+      .catch((claudeError) => {
+        console.error('❌ Claude analysis failed:', claudeError.message);
+      });
 
     res.json({
       success: true,
@@ -105,10 +159,10 @@ router.post('/analyze', async (req, res) => {
       tokenAddress: tokenAddress,
       riskLevel: riskAnalysis.riskLevel,
       riskScore: riskAnalysis.score,
-      claudeReasoning: claudeReasoning,
       concentration: riskReport.concentration,
       recommendations: riskAnalysis.recommendations,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      note: 'Claude AI analysis will be added shortly'
     });
 
   } catch (error) {
@@ -140,8 +194,6 @@ router.get('/:tokenAddress', async (req, res) => {
       });
     }
 
-    console.log(`Fetching risk data for token address: ${tokenAddress}`);
-
     const accountInfo = await mcpClient.callTool({
       name: 'find_account_info',
       arguments: {
@@ -150,21 +202,39 @@ router.get('/:tokenAddress', async (req, res) => {
       }
     });
 
-    // Parse account data
-    let parsedData = accountInfo.content;
-    if (typeof parsedData === 'string') {
-      try {
-        parsedData = JSON.parse(parsedData);
-      } catch (e) {
-        parsedData = { raw: accountInfo.content };
+    // Parse MCP response - handle nested content structure
+    let parsedData = {};
+    try {
+      if (accountInfo.content && Array.isArray(accountInfo.content)) {
+        const textContent = accountInfo.content[0]?.text || accountInfo.content[0];
+        parsedData = typeof textContent === 'string' ? JSON.parse(textContent) : textContent;
+      } else if (typeof accountInfo.content === 'string') {
+        parsedData = JSON.parse(accountInfo.content);
+      } else {
+        parsedData = accountInfo.content || {};
       }
+    } catch (e) {
+      console.error('Error parsing MCP response:', e);
+      parsedData = { raw: accountInfo.content };
     }
 
+    // Use concentration from MCP if available
+    const concentration = parsedData.concentration || {
+      top3: calculateConcentration(parsedData.holders || [], 3),
+      top5: calculateConcentration(parsedData.holders || [], 5),
+      top10: calculateConcentration(parsedData.holders || [], 10)
+    };
+
+    console.log('📊 Quick analysis for:', tokenAddress);
+    
     // Perform basic risk analysis
-    const riskAnalysis = analyzeRisk(accountInfo.content, null);
+    const riskAnalysis = analyzeRisk(parsedData, null);
+    console.log('✅ Risk level:', riskAnalysis.riskLevel, `(${riskAnalysis.score}/100)`);
 
     // Get Claude's reasoning
-    const claudeReasoning = await getClaudeReasoning(parsedData, riskAnalysis);
+    console.log('🤖 Getting Claude analysis...');
+    const claudeReasoning = await getClaudeReasoning(parsedData, riskAnalysis, concentration);
+    console.log('✅ Analysis complete');
 
     res.json({
       success: true,
@@ -172,11 +242,8 @@ router.get('/:tokenAddress', async (req, res) => {
       riskLevel: riskAnalysis.riskLevel,
       riskScore: riskAnalysis.score,
       claudeReasoning: claudeReasoning,
-      concentration: {
-        top3: calculateConcentration(parsedData.topHolders || [], 3),
-        top5: calculateConcentration(parsedData.topHolders || [], 5),
-        top10: calculateConcentration(parsedData.topHolders || [], 10)
-      },
+      concentration: concentration,
+      topHolders: parsedData.holders || [],
       recommendations: riskAnalysis.recommendations,
       timestamp: new Date().toISOString()
     });
@@ -200,21 +267,14 @@ function analyzeRisk(accountData, apiResults) {
   };
 
   try {
-    // Parse the account data if it's a string
     let data = accountData;
-    if (typeof accountData === 'string') {
-      try {
-        data = JSON.parse(accountData);
-      } catch (e) {
-        data = { raw: accountData };
-      }
-    }
-
     let riskScore = 50;
 
+    // Get holders array (could be 'holders' or 'topHolders')
+    const holders = data.holders || data.topHolders || [];
+    
     // Analyze holder concentration
-    if (data.topHolders && Array.isArray(data.topHolders)) {
-      const holders = data.topHolders;
+    if (holders && Array.isArray(holders) && holders.length > 0) {
       
       // Calculate concentration metrics
       const totalPercentage = holders.reduce((sum, h) => sum + (h.percentage || 0), 0);
@@ -310,17 +370,19 @@ function analyzeRisk(accountData, apiResults) {
   return analysis;
 }
 
-async function getClaudeReasoning(accountData, riskAnalysis) {
+async function getClaudeReasoning(accountData, riskAnalysis, concentration) {
   try {
-    const topHolders = accountData.topHolders || [];
+    const holders = accountData.holders || accountData.topHolders || [];
     const totalSupply = accountData.totalSupply || 'Unknown';
-    const tokenInfo = `${accountData.tokenName || 'Unknown'} (${accountData.tokenSymbol || 'Unknown'})`;
+    const tokenInfo = `${accountData.tokenName || accountData.name || 'Unknown'} (${accountData.tokenSymbol || accountData.symbol || 'Unknown'})`;
     
-    // Calculate key metrics
-    const top3Concentration = topHolders.slice(0, 3).reduce((sum, h) => sum + (h.percentage || 0), 0);
-    const top10Concentration = topHolders.slice(0, 10).reduce((sum, h) => sum + (h.percentage || 0), 0);
-    const exchangeCount = topHolders.filter(h => 
-      h.type && (h.type.toLowerCase().includes('exchange') || h.type.toLowerCase().includes('pool'))
+    // Use provided concentration or calculate
+    const top3Concentration = concentration?.top3 || holders.slice(0, 3).reduce((sum, h) => sum + (h.percentage || 0), 0);
+    const top5Concentration = concentration?.top5 || holders.slice(0, 5).reduce((sum, h) => sum + (h.percentage || 0), 0);
+    const top10Concentration = concentration?.top10 || holders.slice(0, 10).reduce((sum, h) => sum + (h.percentage || 0), 0);
+    const exchangeCount = holders.filter(h => 
+      (h.type || h.accountType || '').toLowerCase().includes('exchange') || 
+      (h.type || h.accountType || '').toLowerCase().includes('pool')
     ).length;
 
     const prompt = `You are an expert cryptocurrency risk analyst specializing in Solana tokens. Analyze this token's holder distribution and provide a professional risk assessment.
@@ -330,12 +392,13 @@ TOTAL SUPPLY: ${totalSupply}
 
 HOLDER CONCENTRATION:
 - Top 3 holders control: ${top3Concentration.toFixed(2)}%
+- Top 5 holders control: ${top5Concentration.toFixed(2)}%
 - Top 10 holders control: ${top10Concentration.toFixed(2)}%
 - Exchange/Pool addresses: ${exchangeCount} out of top 10
 
 TOP HOLDERS BREAKDOWN:
-${topHolders.slice(0, 10).map((h, i) => 
-  `${i + 1}. ${h.percentage?.toFixed(2)}% - ${h.type || 'Unknown'} (${h.owner || h.walletOwner || 'Unknown'})`
+${holders.slice(0, 10).map((h, i) => 
+  `${i + 1}. ${h.percentage?.toFixed(2)}% - ${h.accountType || h.type || 'Unknown'} (${h.walletOwner || h.owner || 'Unknown'})`
 ).join('\n')}
 
 PRELIMINARY RISK ASSESSMENT:
@@ -376,6 +439,7 @@ function formatTopHolders(holders, topN) {
   for (let i = 0; i < Math.min(holders.length, topN); i++) {
     const holder = holders[i];
     formatted.push({
+      _key: `holder-${i + 1}-${Date.now()}`,
       rank: i + 1,
       walletOwner: holder.owner || holder.walletOwner || holder.address || 'Unknown',
       tokenAccount: holder.address || holder.tokenAccount || holder.account || 'Unknown',
@@ -388,6 +452,7 @@ function formatTopHolders(holders, topN) {
   // Pad to exactly 10 holders as required by Sanity schema
   while (formatted.length < 10) {
     formatted.push({
+      _key: `holder-${formatted.length + 1}-${Date.now()}`,
       rank: formatted.length + 1,
       walletOwner: 'N/A',
       tokenAccount: 'N/A',
