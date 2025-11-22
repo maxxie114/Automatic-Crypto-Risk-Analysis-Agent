@@ -2,7 +2,9 @@
 
 An AI-powered intelligent agent system that automatically analyzes Solana token holder distributions and provides real-time risk assessments to protect investors from rugpulls, scams, and high-risk tokens.
 
-![Crypto Risk Analysis Agent Banner](https://via.placeholder.com/1200x400/3b82f6/ffffff?text=Crypto+Risk+Analysis+Agent)
+[![Demo Video](https://img.youtube.com/vi/YlX7B-8asQY/maxresdefault.jpg)](https://www.youtube.com/watch?v=YlX7B-8asQY)
+
+**🎥 [Watch Demo Video](https://www.youtube.com/watch?v=YlX7B-8asQY)**
 
 ## 🎯 Inspiration
 
@@ -104,11 +106,20 @@ The cryptocurrency space has seen explosive growth, but with it comes significan
 
 - **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
 - **Backend**: Node.js, Express, ES6 modules
-- **AI**: Anthropic Claude Opus 4, Model Context Protocol (MCP)
-- **Blockchain**: Helius API, Moralis API, Solana Web3.js
+- **AI**: Anthropic Claude Opus 4, Google Gemini, Model Context Protocol (MCP)
+- **Blockchain**: Helius API, Moralis API, Solana Web3.js, TRM Labs
 - **Database**: Sanity CMS (headless)
 - **DevOps**: Docker, DigitalOcean, bash deployment scripts
-- **APIs**: RESTful architecture, JSON-RPC 2.0
+- **APIs & Tools**: Postman, RESTful architecture, JSON-RPC 2.0
+
+### Integrations
+
+- **Moralis API**: Solana wallet analysis, portfolio tracking, NFT data
+- **TRM Labs**: Blockchain intelligence and compliance
+- **Sanity CMS**: Headless content management and data storage
+- **Postman**: API testing, documentation, and workflow automation
+- **Anthropic Claude**: AI-powered risk reasoning and analysis
+- **Google Gemini**: Additional AI model for enhanced insights
 
 ## 🚧 Challenges we ran into
 
@@ -257,6 +268,7 @@ Combining data from Helius (token accounts), Moralis (wallet portfolios), and De
 - **GitHub**: https://github.com/maxxie114/Automatic-Crypto-Risk-Analysis-Agent
 - **MCP Server**: [Deployment URL]
 - **API Documentation**: [Coming Soon]
+- **Postman Collection**: https://www.postman.com/spaceflight-geologist-27511879/notebook/xLYmRK3RjV6o/usdt-search-notebook
 
 ## 👥 Team
 
