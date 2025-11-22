@@ -10,7 +10,20 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const MCP_SERVER_URL = 'http://167.99.111.80:3001/mcp';
 
-app.use(cors());
+// Configure CORS to allow frontend origins
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001', 
+    'https://localhost:3000',
+    /\.ngrok-free\.dev$/,  // Allow any ngrok domains
+    /\.vercel\.app$/,      // Allow Vercel deployments
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
+}));
+
 app.use(express.json());
 
 let mcpClient = null;
@@ -32,45 +45,71 @@ class HttpMcpClient {
       params
     };
 
-    const response = await fetch(this.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json, text/event-stream'
-      },
-      body: JSON.stringify(payload)
-    });
+    console.log(`MCP Request [${this.requestId}]: ${method}`, JSON.stringify(params).substring(0, 100));
 
-    if (!response.ok) {
+    // Add 30 second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(this.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream'
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error(`MCP HTTP Error [${this.requestId}]:`, response.status, text);
+        throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
+      }
+
+      // Parse SSE stream
       const text = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
-    }
+      const lines = text.split('\n');
+      let result = null;
 
-    // Parse SSE stream
-    const text = await response.text();
-    const lines = text.split('\n');
-    let result = null;
-
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = JSON.parse(line.substring(6));
-        
-        if (data.error) {
-          throw new Error(data.error.message || 'MCP request failed');
-        }
-        
-        // Look for the response with matching ID
-        if (data.id === this.requestId) {
-          result = data.result;
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.substring(6));
+            
+            if (data.error) {
+              console.error(`MCP Error [${this.requestId}]:`, data.error);
+              throw new Error(data.error.message || 'MCP request failed');
+            }
+            
+            // Look for the response with matching ID
+            if (data.id === this.requestId) {
+              result = data.result;
+            }
+          } catch (parseError) {
+            console.warn(`Failed to parse SSE line: ${line}`);
+          }
         }
       }
-    }
 
-    if (result === null) {
-      throw new Error('No valid response received from MCP server');
-    }
+      if (result === null) {
+        console.error(`MCP No Response [${this.requestId}]: Full response:`, text.substring(0, 500));
+        throw new Error('No valid response received from MCP server. The server may be down or unresponsive.');
+      }
 
-    return result;
+      console.log(`MCP Success [${this.requestId}]`);
+      return result;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.error(`MCP Timeout [${this.requestId}]: Request took longer than 30 seconds`);
+        throw new Error('MCP server request timed out after 30 seconds');
+      }
+      throw error;
+    }
   }
 
   async callTool({ name, arguments: args }) {
