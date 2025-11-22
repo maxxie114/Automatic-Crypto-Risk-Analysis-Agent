@@ -12,9 +12,7 @@ export default defineType({
             options: {
                 list: [
                     { title: 'Risk Analyzer', value: 'risk_analyzer' },
-                    { title: 'Transaction Monitor', value: 'tx_monitor' },
-                    { title: 'Workflow Automation', value: 'workflow_automation' },
-                ],
+                    { title: 'Transaction Monitor', value: 'tx_monitor' },],
             },
             validation: (Rule) => Rule.required(),
         }),
