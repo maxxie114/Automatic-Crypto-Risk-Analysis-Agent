@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import riskAnalyzerRoutes from './riskAnalyzerEndpoint.js';
 import searchRoutes from './searchEndpoint.js';
+import walletRoutes from './walletEndpoint.js';
 
 dotenv.config();
 
@@ -134,6 +135,7 @@ app.use('/api', (req, res, next) => {
 
 app.use('/api/search', searchRoutes);
 app.use('/api/risk-analyzer', riskAnalyzerRoutes);
+app.use('/api/wallet', walletRoutes);
 
 app.use((err, req, res, next) => {
   console.error('Error:', err);
@@ -169,6 +171,7 @@ async function startServer() {
         console.log(`   Health check: ${url}/health`);
         console.log(`   Search API: ${url}/api/search`);
         console.log(`   Risk Analyzer API: ${url}/api/risk-analyzer/:tokenId`);
+        console.log(`   Wallet Analysis API: ${url}/api/wallet/:walletAddress`);
         
         if (!ngrokAuthToken || ngrokAuthToken === 'your_token_here') {
           console.log('\n💡 Tip: Add NGROK_AUTH_TOKEN to .env for a permanent fixed URL');
